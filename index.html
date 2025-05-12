@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>encryptit</title>
+    <link rel="stylesheet" href="https://media.rossi.nz/fonts/fonts.css">
+    <script src="https://kit.fontawesome.com/83722c7395.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/2.0.2/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: GmarketSansMedium, Arial, sans-serif;
+            min-height: 100vh;
+            margin: 0;
+            padding-bottom: 50px; /* Space for messages */
+        }
+        h1 {
+            margin-top: 20px;
+        }
+        h2 {
+            font-family: GmarketSansLight, Arial, sans-serif;
+        }
+        .ml2 {
+            font-weight: 900;
+            font-size: 3.5em;
+        }
+        .ml2 .letter {
+            display: inline-block;
+            line-height: 1em;
+        }
+        .lock-icon {
+            font-size: 150px;
+            animation: fade-in 2s forwards;
+        }
+        @keyframes fade-in {
+            0% {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .header {
+            text-align: center;
+            margin-top: max(5vh, 50px); /* Adjust top margin */
+        }
+        .mediacontainer {
+            width: 30vw;
+            height: 20vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: #000000;
+            border: 2px dashed #ffffff;
+            border-radius: 10px;
+            margin-top: 50px; /* Adjusted margin */
+            min-width: 550px;
+            min-height: 200px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .mediacontainer:hover {
+            background-color: #ffffff15;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        #password-prompt {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: clamp(300px, 50%, 500px);
+        }
+        #password-prompt label {
+            font-size: 1.1em;
+        }
+        #password-prompt input[type="password"], #password-prompt input[type="text"] {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background-color: #333;
+            color: #fff;
+            width: 80%;
+            font-family: GmarketSansMedium, Arial, sans-serif;
+        }
+        #password-prompt button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-family: GmarketSansMedium, Arial, sans-serif;
+            transition: background-color 0.3s;
+        }
+        #password-prompt button:hover {
+            background-color: #0056b3;
+        }
+        #status-message {
+            margin-top: 20px;
+            font-family: GmarketSansLight, Arial, sans-serif;
+            color: #00ff7f; /* Green for success, can change for errors */
+            min-height: 1.5em; /* Reserve space */
+        }
+
+        @media (max-width: 768px) {
+            .mediacontainer {
+                min-width: 90vw;
+                margin-top: 10vh;
+            }
+            .lock-icon {
+                font-size: 100px;
+            }
+            .header {
+                margin-top: 5vh;
+            }
+            .ml2 {
+                font-size: 2em;
+            }
+            #password-prompt {
+                width: 90%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <i class="fa-solid fa-lock fa-2xl lock-icon" style="color: #ffffff;"></i>
+        <h1 class="ml2">encryptit</h1>
+    </div>
+
+    <div class="mediacontainer">
+        <i class="fa-solid fa-file-import fa-2xl" style="color: #ffffff;"></i>
+        <h2>drag and drop your files here!</h2>
+        <p style="font-size: 0.8em; font-family: GmarketSansLight, Arial, sans-serif;">(or click to select)</p>
+    </div>
+
+    <div id="password-prompt">
+        <label for="password">Enter Password:</label>
+        <input type="password" id="password" name="password">
+        <label for="filename" id="filename-label" style="display:none;">Output Filename (e.g., archive.encryptit):</label>
+        <input type="text" id="filename" name="filename" style="display:none;">
+        <button id="submit-password">Proceed</button>
+    </div>
+
+    <div id="status-message"></div>
+
+    <script>
+        // --- UI Animations & Basic Setup ---
+        var textWrapper = document.querySelector('.ml2');
+        textWrapper.innerHTML = textWrapper.textContent.replace(/\S/g, "<span class='letter'>$&</span>");
+
+        anime.timeline({loop: false})
+        .add({
+            targets: '.ml2 .letter',
+            scale: [4,1],
+            opacity: [0,1],
+            translateZ: 0,
+            easing: "easeOutExpo",
+            duration: 950,
+            delay: (el, i) => 70*i
+        }).add({
+            targets: '.ml2',
+            opacity: 1,
+            duration: 1000,
+            easing: "easeOutExpo",
+            delay: 1000
+        });
+
+        const mediacontainer = document.querySelector('.mediacontainer');
+        const passwordPrompt = document.getElementById('password-prompt');
+        const passwordInput = document.getElementById('password');
+        const filenameInput = document.getElementById('filename');
+        const filenameLabel = document.getElementById('filename-label');
+        const submitPasswordButton = document.getElementById('submit-password');
+        const statusMessage = document.getElementById('status-message');
+
+        let currentFiles = null;
+        let currentAction = null; // 'encrypt' or 'decrypt'
+
+        // --- Drag and Drop & Click to Upload ---
+        mediacontainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            mediacontainer.style.backgroundColor = '#ffffff15';
+        });
+        mediacontainer.addEventListener('dragleave', () => {
+            mediacontainer.style.backgroundColor = '#000000';
+        });
+        mediacontainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            mediacontainer.style.backgroundColor = '#000000';
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelection(files);
+            }
+        });
+        mediacontainer.addEventListener('click', () => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            // For folder selection (works in Chrome/Edge, graceful fallback in others)
+            // Note: this gives a flat list of files, not true folder structure for JSZip easily.
+            // For true folder structure preservation with JSZip, one might need the File System Access API,
+            // or more complex handling of `webkitGetAsEntry` if available from drag-and-drop.
+            // We'll keep it simple for now and treat all inputs as a list of files.
+            input.webkitdirectory = true;
+            input.mozdirectory = true;
+            input.directory = true;
+            input.multiple = true;
+
+            input.addEventListener('change', (e) => {
+                const files = e.target.files;
+                if (files.length > 0) {
+                    handleFileSelection(files);
+                }
+            });
+            input.click();
+        });
+
+        function setStatus(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.style.color = isError ? '#ff4d4d' : '#00ff7f'; // Red for error, green for success
+            if (message) {
+                setTimeout(() => {
+                    if (statusMessage.textContent === message) { // Clear only if message hasn't changed
+                        statusMessage.textContent = '';
+                    }
+                }, isError? 8000 : 5000);
+            }
+        }
+
+        function handleFileSelection(files) {
+            currentFiles = files;
+            passwordInput.value = ''; // Clear previous password
+            filenameInput.value = ''; // Clear previous filename
+
+            if (!files || files.length === 0) {
+                setStatus("No files selected.", true);
+                return;
+            }
+
+            const allAreEncryptit = Array.from(files).every(file => file.name.toLowerCase().endsWith('.encryptit'));
+            const someAreEncryptit = Array.from(files).some(file => file.name.toLowerCase().endsWith('.encryptit'));
+
+            if (allAreEncryptit) {
+                currentAction = 'decrypt';
+                setStatus(`Preparing to decrypt ${files.length} .encryptit file(s). Enter password.`);
+                filenameInput.style.display = 'none';
+                filenameLabel.style.display = 'none';
+            } else if (!allAreEncryptit && someAreEncryptit) {
+                setStatus("Mixed file types. Please select only .encryptit files to decrypt, or only other file types to encrypt.", true);
+                passwordPrompt.style.display = 'none';
+                return;
+            } else {
+                currentAction = 'encrypt';
+                setStatus(`Preparing to encrypt ${files.length} file(s). Enter password and output filename.`);
+                filenameInput.style.display = 'block';
+                filenameLabel.style.display = 'block';
+                filenameInput.value = `encrypted_bundle_${Date.now()}.encryptit`; // Suggest a filename
+            }
+            passwordPrompt.style.display = 'flex';
+            passwordInput.focus();
+        }
+
+        submitPasswordButton.addEventListener('click', async () => {
+            const password = passwordInput.value;
+            const outputFilename = filenameInput.value.trim();
+
+            if (!password) {
+                setStatus("Password cannot be empty.", true);
+                return;
+            }
+            if (currentAction === 'encrypt' && !outputFilename) {
+                setStatus("Output filename cannot be empty for encryption.", true);
+                return;
+            }
+            if (currentAction === 'encrypt' && !outputFilename.toLowerCase().endsWith('.encryptit')) {
+                setStatus("Output filename must end with .encryptit", true);
+                return;
+            }
+
+
+            passwordPrompt.style.display = 'none'; // Hide prompt during processing
+            setStatus("Processing... please wait.", false);
+
+            try {
+                if (currentAction === 'encrypt') {
+                    await encryptFiles(currentFiles, password, outputFilename);
+                } else if (currentAction === 'decrypt') {
+                    await decryptFiles(currentFiles, password);
+                }
+            } catch (error) {
+                console.error("Operation failed:", error);
+                setStatus(`Error: ${error.message}. Check console for details.`, true);
+            } finally {
+                currentFiles = null; // Reset after operation
+                currentAction = null;
+                passwordInput.value = ''; // Clear password after use
+                filenameInput.value = '';
+                 // Don't hide prompt here, let handleFileSelection show it if needed
+            }
+        });
+
+        // --- Cryptographic Functions ---
+
+        const PBKDF2_ITERATIONS = 100000; // Iteration count for PBKDF2
+        const SALT_LENGTH = 16; // Bytes
+        const IV_LENGTH = 12; // Bytes for AES-GCM
+
+        async function deriveKey(password, salt) {
+            const enc = new TextEncoder();
+            const keyMaterial = await window.crypto.subtle.importKey(
+                "raw",
+                enc.encode(password),
+                { name: "PBKDF2" },
+                false,
+                ["deriveKey"]
+            );
+            return window.crypto.subtle.deriveKey(
+                {
+                    name: "PBKDF2",
+                    salt: salt,
+                    iterations: PBKDF2_ITERATIONS,
+                    hash: "SHA-256",
+                },
+                keyMaterial,
+                { name: "AES-GCM", length: 256 },
+                true,
+                ["encrypt", "decrypt"]
+            );
+        }
+
+        async function encryptFiles(files, password, outputFilename) {
+            setStatus("Encrypting... Reading files.", false);
+            const zip = new JSZip();
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const arrayBuffer = await file.arrayBuffer();
+                // Storing with full path if available (e.g., from webkitdirectory)
+                // For simple file lists, file.webkitRelativePath might be empty.
+                const path = file.webkitRelativePath || file.name;
+                zip.file(path, arrayBuffer);
+                setStatus(`Encrypting... Added ${file.name} to archive. (${i+1}/${files.length})`, false);
+            }
+
+            setStatus("Encrypting... Compressing files.", false);
+            const zipBlob = await zip.generateAsync({ type: "arraybuffer", compression: "DEFLATE", compressionOptions: { level: 9 } });
+
+            const salt = window.crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
+            const iv = window.crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+
+            setStatus("Encrypting... Deriving key.", false);
+            const key = await deriveKey(password, salt);
+
+            setStatus("Encrypting... Performing encryption.", false);
+            const encryptedContent = await window.crypto.subtle.encrypt(
+                { name: "AES-GCM", iv: iv },
+                key,
+                zipBlob
+            );
+
+            // Combine salt, IV, and ciphertext: salt (16B) + iv (12B) + data
+            const finalBuffer = new Uint8Array(salt.length + iv.length + encryptedContent.byteLength);
+            finalBuffer.set(salt, 0);
+            finalBuffer.set(iv, salt.length);
+            finalBuffer.set(new Uint8Array(encryptedContent), salt.length + iv.length);
+
+            triggerDownload(outputFilename, finalBuffer.buffer);
+            setStatus(`Encryption complete! ${outputFilename} downloaded.`, false);
+        }
+
+        async function decryptFiles(files, password) {
+            if (files.length === 0) {
+                setStatus("No .encryptit files selected for decryption.", true);
+                return;
+            }
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                setStatus(`Decrypting ${file.name} (${i+1}/${files.length})... Reading file.`, false);
+                const fileBuffer = await file.arrayBuffer();
+
+                // Extract salt, IV
+                const salt = new Uint8Array(fileBuffer.slice(0, SALT_LENGTH));
+                const iv = new Uint8Array(fileBuffer.slice(SALT_LENGTH, SALT_LENGTH + IV_LENGTH));
+                const encryptedContent = fileBuffer.slice(SALT_LENGTH + IV_LENGTH);
+
+                if (!salt.length || !iv.length || !encryptedContent.byteLength) {
+                    throw new Error(`File ${file.name} is not in the correct format or is too small.`);
+                }
+                
+                setStatus(`Decrypting ${file.name}... Deriving key.`, false);
+                let key;
+                try {
+                    key = await deriveKey(password, salt);
+                } catch(e) {
+                    console.error("Key derivation failed:", e);
+                    throw new Error(`Key derivation failed for ${file.name}. Incorrect password or corrupted salt?`);
+                }
+
+
+                setStatus(`Decrypting ${file.name}... Performing decryption.`, false);
+                let decryptedZipBuffer;
+                try {
+                    decryptedZipBuffer = await window.crypto.subtle.decrypt(
+                        { name: "AES-GCM", iv: iv },
+                        key,
+                        encryptedContent
+                    );
+                } catch (e) {
+                    console.error("Decryption failed:", e);
+                    // Common issue: wrong password or corrupted file
+                    throw new Error(`Decryption failed for ${file.name}. Incorrect password or corrupted file.`);
+                }
+
+                setStatus(`Decrypting ${file.name}... Extracting files from archive.`, false);
+                const zip = new JSZip();
+                try {
+                    await zip.loadAsync(decryptedZipBuffer);
+                } catch (e) {
+                    console.error("Failed to load zip archive:", e);
+                    throw new Error(`Failed to read archive from ${file.name}. It might be corrupted or not a valid archive.`);
+                }
+
+                let fileCountInZip = 0;
+                for (const filenameInZip in zip.files) {
+                    if (!zip.files[filenameInZip].dir) { // Only download files, not directories themselves
+                        fileCountInZip++;
+                        const fileData = await zip.file(filenameInZip).async("arraybuffer");
+                        // To prevent overwriting, could add a prefix or subdirectory based on the .encryptit filename
+                        // For simplicity now, just using original names.
+                        const originalName = filenameInZip.split('/').pop(); // Get the base name
+                        triggerDownload(originalName, fileData);
+                        setStatus(`Decrypted and downloaded: ${originalName} from ${file.name}`, false);
+                    }
+                }
+                if (fileCountInZip === 0) {
+                    setStatus(`Warning: The archive ${file.name} was empty or contained only folders.`, true);
+                } else {
+                    setStatus(`Successfully decrypted and initiated downloads for ${fileCountInZip} file(s) from ${file.name}.`, false);
+                }
+            }
+             if (files.length > 1) {
+                setStatus(`All selected .encryptit files processed.`, false);
+            }
+        }
+
+        // --- Helper function to trigger file download ---
+        function triggerDownload(filename, data, mimeType = 'application/octet-stream') {
+            const blob = new Blob([data], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { // Delay removal to ensure download starts
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                console.log(`Download initiated for: ${filename}`);
+            }, 100);
+        }
+
+    </script>
+</body>
+</html>
